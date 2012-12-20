@@ -1,0 +1,15 @@
+<head>
+  <title>client-collection example</title>
+</head>
+
+<body>
+  {{> hello}}
+</body>
+
+<template name="hello">
+  <h1>client-collection example</h1>
+  <div><input id="inc" type="button" value="Increment"></div>
+  {{#each count}}
+    <div>{{i}}</div>
+  {{/each}}
+</template>
