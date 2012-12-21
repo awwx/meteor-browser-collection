@@ -26,7 +26,7 @@
   collections = {};
 
   Meteor.LocalMsg.listen({
-    'Method.ClientCollection.single': function(collection_name, doc_id) {
+    'Meteor.ClientCollection.single': function(collection_name, doc_id) {
       var _ref;
       return (_ref = collections[collection_name]) != null ? _ref._reload_single(doc_id) : void 0;
     }
@@ -83,7 +83,7 @@
       return db.transaction((function(tx) {
         return tx.executeSql('SELECT document FROM documents WHERE collection=? AND id=?', [_this._name, doc_id], (function(tx, result) {
           if (result.rows.length === 1) {
-            return doc = result.rows.item(0);
+            return doc = JSON.parse(result.rows.item(0).document);
           }
         }));
       }), (function(error) {
@@ -100,11 +100,12 @@
         throw new Error('inserted doc should not yet have an _id attribute');
       }
       doc._id = LocalCollection.uuid();
-      this._localCollection.insert(doc);
       db.transaction((function(tx) {
         return tx.executeSql('INSERT INTO documents (id, collection, document) VALUES (?, ?, ?)', [doc._id, _this._name, JSON.stringify(doc)]);
       }), (function(error) {
-        return console.log(error);
+        return console.log('insert transaction error', error);
+      }), (function() {
+        return _this._localCollection.insert(doc);
       }));
       return doc._id;
     },
@@ -132,7 +133,6 @@
       }), (function(error) {
         return console.log('modify transaction error', error);
       }), (function() {
-        console.log('modify transaction successful');
         if (doc != null) {
           _this._localCollection.update(doc._id, doc);
           return Meteor.LocalMsg.send('Meteor.ClientCollection.single', _this._name, doc._id);
@@ -144,6 +144,9 @@
   });
 
   Meteor.ClientSQLCollection.erase = function() {
+    if (!_.isEmpty(collections)) {
+      throw new Error("call erase() before opening any collections");
+    }
     return db.transaction((function(tx) {
       return tx.executeSql('DELETE FROM documents');
     }), (function(error) {
