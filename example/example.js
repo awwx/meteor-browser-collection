@@ -6,7 +6,7 @@
     return;
   }
 
-  count = new Meteor.ClientSQLCollection('count', function() {
+  count = new Meteor.BrowserSQLCollection('count', function() {
     if (count.find().count() === 0) {
       return count.insert({
         i: 30

@@ -1,8 +1,8 @@
 return unless Meteor.isClient
 
-# Meteor.ClientSQLCollection.erase()
+# Meteor.BrowserSQLCollection.erase()
 
-count = new Meteor.ClientSQLCollection 'count', ->
+count = new Meteor.BrowserSQLCollection 'count', ->
   if count.find().count() is 0
     count.insert {i: 30}
 

@@ -4,6 +4,6 @@
     "branch": "master"
   },
   "packages": {
-    "client-collection": {"path": ".."}
+    "browser-collection": {"path": ".."}
   }
 }

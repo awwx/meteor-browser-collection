@@ -1,8 +1,8 @@
 {
-  "name": "client-collection",
+  "name": "browser-collection",
   "description": "...",
   "version": "0.0.1",
   "packages": {
-    "localmsg": {}
+    "browser-msg": {}
   }
 }

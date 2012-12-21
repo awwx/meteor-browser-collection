@@ -1,4 +1,4 @@
-db = openDatabase 'Meteor.ClientCollection', '', '', 1024 * 1024, (db)
+db = openDatabase 'Meteor.BrowserCollection', '', '', 1024 * 1024, (db)
 
 console.log 'version', JSON.stringify(db.version)
 
@@ -22,13 +22,13 @@ if db.version is ''
 
 collections = {}
 
-Meteor.LocalMsg.listen
-  'Meteor.ClientCollection.single': (collection_name, doc_id) ->
+Meteor.BrowserMsg.listen
+  'Meteor.BrowserCollection.single': (collection_name, doc_id) ->
     collections[collection_name]?._reload_single(doc_id)
 
-Meteor.ClientSQLCollection = (name, cb) ->
+Meteor.BrowserSQLCollection = (name, cb) ->
   if collections[name]
-    throw new Error('a ClientCollection with this name has already been created: ' + name)
+    throw new Error('a BrowserCollection with this name has already been created: ' + name)
   @_name = name
   @_localCollection = new LocalCollection()
   @_load(cb)
@@ -45,7 +45,7 @@ result_as_array = (result) ->
     a.push result.rows.item(i)
   a
 
-_.extend Meteor.ClientSQLCollection.prototype,
+_.extend Meteor.BrowserSQLCollection.prototype,
 
   _load: (cb) ->
     db.transaction(
@@ -129,13 +129,13 @@ _.extend Meteor.ClientSQLCollection.prototype,
       (=>
         if doc?
           @_localCollection.update doc._id, doc
-          Meteor.LocalMsg.send 'Meteor.ClientCollection.single', @_name, doc._id
+          Meteor.BrowserMsg.send 'Meteor.BrowserCollection.single', @_name, doc._id
         else
           console.log 'but no document was found with id', selector
       )
     )
 
-Meteor.ClientSQLCollection.erase = ->
+Meteor.BrowserSQLCollection.erase = ->
   # TODO not good if other windows already have a collection open
   unless _.isEmpty(collections)
     throw new Error("call erase() before opening any collections")

@@ -3,7 +3,7 @@
   var collections, db, each_sql_result, result_as_array,
     __slice = [].slice;
 
-  db = openDatabase('Meteor.ClientCollection', '', '', 1024 * 1024, db);
+  db = openDatabase('Meteor.BrowserCollection', '', '', 1024 * 1024, db);
 
   console.log('version', JSON.stringify(db.version));
 
@@ -25,16 +25,16 @@
 
   collections = {};
 
-  Meteor.LocalMsg.listen({
-    'Meteor.ClientCollection.single': function(collection_name, doc_id) {
+  Meteor.BrowserMsg.listen({
+    'Meteor.BrowserCollection.single': function(collection_name, doc_id) {
       var _ref;
       return (_ref = collections[collection_name]) != null ? _ref._reload_single(doc_id) : void 0;
     }
   });
 
-  Meteor.ClientSQLCollection = function(name, cb) {
+  Meteor.BrowserSQLCollection = function(name, cb) {
     if (collections[name]) {
-      throw new Error('a ClientCollection with this name has already been created: ' + name);
+      throw new Error('a BrowserCollection with this name has already been created: ' + name);
     }
     this._name = name;
     this._localCollection = new LocalCollection();
@@ -61,7 +61,7 @@
     return a;
   };
 
-  _.extend(Meteor.ClientSQLCollection.prototype, {
+  _.extend(Meteor.BrowserSQLCollection.prototype, {
     _load: function(cb) {
       var _this = this;
       return db.transaction((function(tx) {
@@ -135,7 +135,7 @@
       }), (function() {
         if (doc != null) {
           _this._localCollection.update(doc._id, doc);
-          return Meteor.LocalMsg.send('Meteor.ClientCollection.single', _this._name, doc._id);
+          return Meteor.BrowserMsg.send('Meteor.BrowserCollection.single', _this._name, doc._id);
         } else {
           return console.log('but no document was found with id', selector);
         }
@@ -143,7 +143,7 @@
     }
   });
 
-  Meteor.ClientSQLCollection.erase = function() {
+  Meteor.BrowserSQLCollection.erase = function() {
     if (!_.isEmpty(collections)) {
       throw new Error("call erase() before opening any collections");
     }
