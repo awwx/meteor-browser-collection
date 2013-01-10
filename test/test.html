@@ -1,0 +1,26 @@
+<head>
+  <title>browser-collection tests</title>
+</head>
+
+<body>
+  {{>route}}
+</body>
+
+<template name="route">
+  {{#if show_parent}}
+    {{>parent}}
+  {{/if}}
+  {{#if show_child1}}
+    {{>child1}}
+  {{/if}}
+</template>
+
+<template name="parent">
+  <h1>browser-collection tests</h1>
+
+  <pre id="log"></pre>
+</template>
+
+<template name="child1">
+  <h1>child1</h1>
+</template>

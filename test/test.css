@@ -1,0 +1,10 @@
+#log {
+  margin-top: 1em;
+  height: 10em;
+  overflow: scroll;
+  border: 1px solid grey;
+}
+
+#log p {
+  margin: 0;
+}

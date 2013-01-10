@@ -1,0 +1,18 @@
+{
+  "meteor": {
+    "git": "https://github.com/meteor/meteor.git",
+    "branch": "master"
+  },
+  "packages": {
+    "browser-collection": {
+      "path": ".."
+    },
+    "git-commit-sha": {
+      "git": "git://github.com/awwx/meteor-git-commit-sha.git"
+    },
+    "when": {},
+    "windowtest": {
+      "path": "../../meteor-windowtest"
+    }
+  }
+}
