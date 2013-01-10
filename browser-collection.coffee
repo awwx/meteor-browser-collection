@@ -1,6 +1,10 @@
-db = openDatabase 'Meteor.BrowserCollection', '', '', 1024 * 1024, (db)
+_when = @when
 
-console.log 'version', JSON.stringify(db.version)
+
+# TODO support Indexed DB
+
+
+db = openDatabase 'Meteor.BrowserCollection', '', '', 1024 * 1024, (db)
 
 if db.version is ''
   db.changeVersion '', '1',
@@ -26,13 +30,14 @@ Meteor.BrowserMsg.listen
   'Meteor.BrowserCollection.single': (collection_name, doc_id) ->
     collections[collection_name]?._reload_single(doc_id)
 
+#TODO return a promise
 Meteor.BrowserSQLCollection = (name, cb) ->
-  if collections[name]
+  if collections[name]?
     throw new Error('a BrowserCollection with this name has already been created: ' + name)
   @_name = name
   @_localCollection = new LocalCollection()
-  @_load(cb)
   collections[name] = @
+  @_load(cb)
   undefined
 
 each_sql_result = (result, callback) ->
@@ -79,7 +84,12 @@ _.extend Meteor.BrowserSQLCollection.prototype,
       ((error) => console.log error),
       (=>
         if doc?
-          @_localCollection.update doc._id, doc
+          if @_localCollection.findOne(doc._id)?
+            @_localCollection.update doc._id, doc
+          else
+            @_localCollection.insert doc
+        else
+          @_localCollection.remove doc_id
       )
     )
 
@@ -93,11 +103,13 @@ _.extend Meteor.BrowserSQLCollection.prototype,
           [doc._id, @_name, JSON.stringify(doc)]
       ),
       ((error) =>
-        # might be out of space?
+        # TODO might be out of space?
         console.log 'insert transaction error', error
       ),
       (=>
         @_localCollection.insert(doc)
+        Meteor.BrowserMsg.send 'Meteor.BrowserCollection.single', @_name, doc._id
+        callback()
       )
     )
     doc._id
@@ -105,8 +117,11 @@ _.extend Meteor.BrowserSQLCollection.prototype,
   find: (arg...) ->
     @_localCollection.find(arg...)
 
+  findOne: (arg...) ->
+    @_localCollection.findOne(arg...)
+
   update: (selector, modifier) ->
-    unless _.isString(selector)
+    unless LocalCollection._selectorIsId(selector)
       throw new Error('not implemented yet')
     doc = null
     db.transaction(
@@ -130,17 +145,46 @@ _.extend Meteor.BrowserSQLCollection.prototype,
         if doc?
           @_localCollection.update doc._id, doc
           Meteor.BrowserMsg.send 'Meteor.BrowserCollection.single', @_name, doc._id
-        else
-          console.log 'but no document was found with id', selector
+      )
+    )
+
+  remove: (selector) ->
+    unless LocalCollection._selectorIsId(selector)
+      throw new Error('not implemented yet')
+    doc_id = selector
+    db.transaction(
+      ((tx) =>
+        tx.executeSql(
+          'DELETE FROM documents WHERE id=?',
+          [doc_id]
+        )
+      ),
+      ((error) =>
+        console.log 'remove transaction error', error
+      ),
+      ((tx, result) =>
+        @_localCollection.remove(doc_id)
+        Meteor.BrowserMsg.send 'Meteor.BrowserCollection.single', @_name, doc_id
       )
     )
 
 Meteor.BrowserSQLCollection.erase = ->
+  done = _when.defer()
   # TODO not good if other windows already have a collection open
   unless _.isEmpty(collections)
     throw new Error("call erase() before opening any collections")
   db.transaction(
     ((tx) -> tx.executeSql('DELETE FROM documents')),
-    ((error) -> console.log 'erase transaction error', error),
-    (-> console.log 'erase transaction success')
+    ((error) ->
+      console.log 'erase transaction error', error
+      done.reject(error)
+    ),
+    (->
+      console.log 'erase transaction success'
+      done.resolve()
+    )
   )
+  done.promise
+
+Meteor.BrowserSQLCollection.reset = ->
+  collections = {}

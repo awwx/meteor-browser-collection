@@ -3,6 +3,7 @@
   "description": "...",
   "version": "0.0.1",
   "packages": {
-    "browser-msg": {}
+    "browser-msg": {},
+    "when": {}
   }
 }
