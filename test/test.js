@@ -4,6 +4,17 @@
     __slice = [].slice,
     __indexOf = [].indexOf || function(item) { for (var i = 0, l = this.length; i < l; i++) { if (i in this && this[i] === item) return i; } return -1; };
 
+  if (Meteor.isServer) {
+    Meteor.methods({
+      log: function() {
+        var args;
+        args = 1 <= arguments.length ? __slice.call(arguments, 0) : [];
+        console.log.apply(console, args);
+        return null;
+      }
+    });
+  }
+
   if (!Meteor.isClient) {
     return;
   }
@@ -29,10 +40,14 @@
     }).join(' ') + "\n";
     $('#log').append(document.createTextNode(msg));
     e = $('#log')[0];
-    if (e == null) {
-      return;
+    if (e != null) {
+      e.scrollTop = e.scrollHeight;
     }
-    e.scrollTop = e.scrollHeight;
+    Meteor.call.apply(Meteor, ['log'].concat(__slice.call(args), [function(error) {
+      if (error != null) {
+        return typeof console !== "undefined" && console !== null ? typeof console.log === "function" ? console.log(error) : void 0 : void 0;
+      }
+    }]));
     return null;
   };
 

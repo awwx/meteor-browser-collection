@@ -1,3 +1,9 @@
+if Meteor.isServer
+  Meteor.methods
+    log: (args...) ->
+      console.log args...
+      null
+
 return unless Meteor.isClient
 
 Meteor.windowtest.numberOfWindowsToOpen 1
@@ -9,9 +15,8 @@ log0 = (args...) ->
   msg = _.map(args, (arg) -> if _.isString(arg) then arg else JSON.stringify(arg)).join(' ') + "\n"
   $('#log').append(document.createTextNode(msg))
   e = $('#log')[0]
-  # oops, was doing some logging before the template containing the "log" div is rendered
-  return unless e?
-  e.scrollTop = e.scrollHeight
+  e.scrollTop = e.scrollHeight if e?
+  Meteor.call 'log', args..., (error) -> console?.log? error if error?
   null
 
 log = (args...) ->
