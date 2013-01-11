@@ -50,6 +50,8 @@ result_as_array = (result) ->
     a.push result.rows.item(i)
   a
 
+idOf = (doc) -> doc._id
+
 _.extend Meteor.BrowserSQLCollection.prototype,
 
   _load: (cb) ->
@@ -93,6 +95,47 @@ _.extend Meteor.BrowserSQLCollection.prototype,
       )
     )
 
+  _fetch_all_docs: (tx, cb) ->
+    tx.executeSql(
+      'SELECT document FROM documents WHERE collection=?',
+      [@_name],
+      ((tx, result) =>
+        docs = []
+        for i in [0 ... result.rows.length]
+          docs.push JSON.parse(result.rows.item(i))
+        cb(docs)
+      )
+    )
+
+  _store_doc: (tx, doc) ->
+    tx.executeSql(
+      'UPDATE documents SET document=? WHERE id=?',
+      [JSON.stringify(doc), doc._id]
+    )
+
+  _reload_all: ->
+    docs = null
+    db.transaction(
+      ((tx) =>
+        @_fetch_all_docs tx, (_docs) =>
+          docs = _docs
+      ),
+      ((error) => console.log error),
+      (=>
+        doc_ids = _.map(docs, idOf)
+        cache_ids = _.map(@_localCollection.find().fetch(), idOf)
+
+        toDelete = _.without(cache_ids, doc_ids)
+        @_localCollection.remove id for id in toDelete
+
+        for doc in docs
+          if doc._id in cache_ids
+            @_localCollection.update doc._id, doc
+          else
+            @_localCollection.insert doc
+      )
+    )
+
   insert: (doc, callback) ->
     if doc._id?
       throw new Error 'inserted doc should not yet have an _id attribute'
@@ -120,23 +163,18 @@ _.extend Meteor.BrowserSQLCollection.prototype,
   findOne: (arg...) ->
     @_localCollection.findOne(arg...)
 
-  update: (selector, modifier) ->
-    unless LocalCollection._selectorIsId(selector)
-      throw new Error('not implemented yet')
+  _update_single: (doc_id, modifier) ->
     doc = null
     db.transaction(
       ((tx) =>
         tx.executeSql(
           'SELECT document FROM documents WHERE id=?',
-          [selector],
+          [doc_id],
           ((tx, result) =>
             return if result.rows.length isnt 1
             doc = JSON.parse(result.rows.item(0).document)
             LocalCollection._modify(doc, modifier)
-            tx.executeSql(
-              'UPDATE documents SET document=? WHERE id=?',
-              [JSON.stringify(doc), doc._id],
-            )
+            @_store_doc tx, doc
           )
         )
       ),
@@ -147,6 +185,35 @@ _.extend Meteor.BrowserSQLCollection.prototype,
           Meteor.BrowserMsg.send 'Meteor.BrowserCollection.single', @_name, doc._id
       )
     )
+
+  _update_multiple: (selector, modifier, options, callback) ->
+    compiledSelector = LocalCollection._compileSelector(selector)
+    db.transaction(
+      ((tx) =>
+        @_fetch_all_docs tx, (docs) =>
+          modified_docs = []
+          for doc in docs
+            if compiledSelector(doc)
+              LocalCollection._modify(doc, modifier)
+              @_store_doc tx, doc
+              break unless options?.multi
+          null
+      ),
+      ((error) => console.log error),
+      (=>
+        # update local collection
+      )
+    )
+
+  update: (selector, modifier, options, callback) ->
+    if _.isFunction(options)
+      callback = options
+      options = {}
+    if LocalCollection._selectorIsId(selector)
+      @_update_single selector, modifier
+    else
+      @_update_multiple selector, modifier, options, callback
+
 
   remove: (selector) ->
     unless LocalCollection._selectorIsId(selector)
