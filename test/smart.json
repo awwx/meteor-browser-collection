@@ -12,7 +12,7 @@
     },
     "when": {},
     "windowtest": {
-      "path": "../../meteor-windowtest"
+      "git": "git://github.com/awwx/meteor-windowtest.git"
     }
   }
 }
