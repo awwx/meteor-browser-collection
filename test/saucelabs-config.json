@@ -1,0 +1,48 @@
+{
+  "name": "meteor-browser-collection",
+  "windowtest": true,
+  "where": "saucelabs",
+  "parallelTests": 3,
+  "browsers": [
+    {
+      "browserName": "android",
+      "platform": "Linux",
+      "version": "4"
+    },
+    {
+      "browserName": "chrome",
+      "platform": "Linux"
+    },
+    {
+      "browserName": "chrome",
+      "platform": "Mac 10.6"
+    },
+    {
+      "browserName": "chrome",
+      "platform": "Mac 10.8"
+    },
+    {
+      "browserName": "chrome",
+      "platform": "Windows 2003"
+    },
+    {
+      "browserName": "chrome",
+      "platform": "Windows 2008"
+    },
+    {
+      "browserName": "safari",
+      "platform": "Mac 10.6",
+      "version": "5"
+    },
+    {
+      "browserName": "safari",
+      "platform": "Mac 10.8",
+      "version": "6"
+    },
+    {
+      "browserName": "safari",
+      "version": "5",
+      "platform": "Windows 2008"
+    }
+  ]
+}
