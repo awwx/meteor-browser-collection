@@ -168,7 +168,7 @@ _.extend Meteor.BrowserSQLCollection.prototype,
       (=>
         @_localCollection.insert(doc)
         Meteor.BrowserMsg.send 'Meteor.BrowserCollection.single', @_name, doc._id
-        callback?()
+        callback?(null, doc._id)
         undefined
       )
     )

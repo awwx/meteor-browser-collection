@@ -184,7 +184,7 @@
         _this._localCollection.insert(doc);
         Meteor.BrowserMsg.send('Meteor.BrowserCollection.single', _this._name, doc._id);
         if (typeof callback === "function") {
-          callback();
+          callback(null, doc._id);
         }
         return void 0;
       }));
