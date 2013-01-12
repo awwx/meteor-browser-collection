@@ -175,11 +175,18 @@
       db.transaction((function(tx) {
         return tx.executeSql('INSERT INTO documents (id, collection, document) VALUES (?, ?, ?)', [doc._id, _this._name, JSON.stringify(doc)]);
       }), (function(error) {
-        return console.log('insert transaction error', error);
+        console.log('insert transaction error', error);
+        if (typeof callback === "function") {
+          callback(error);
+        }
+        return void 0;
       }), (function() {
         _this._localCollection.insert(doc);
         Meteor.BrowserMsg.send('Meteor.BrowserCollection.single', _this._name, doc._id);
-        return callback();
+        if (typeof callback === "function") {
+          callback();
+        }
+        return void 0;
       }));
       return doc._id;
     },
@@ -207,7 +214,11 @@
           return _this._store_doc(tx, doc);
         }));
       }), (function(error) {
-        return console.log('modify transaction error', error);
+        console.log('modify transaction error', error);
+        if (typeof callback === "function") {
+          callback(error);
+        }
+        return void 0;
       }), (function() {
         _this._cache_set(doc_id, doc);
         Meteor.BrowserMsg.send('Meteor.BrowserCollection.single', _this._name, doc_id);
@@ -239,7 +250,11 @@
           return void 0;
         });
       }), (function(error) {
-        return console.log(error);
+        console.log('update transaction error', error);
+        if (typeof callback === "function") {
+          callback();
+        }
+        return void 0;
       }), (function() {
         var doc, _i, _len;
         for (_i = 0, _len = modified_docs.length; _i < _len; _i++) {
@@ -265,18 +280,26 @@
       }
       return void 0;
     },
-    _remove_single: function(doc_id) {
+    _remove_single: function(doc_id, callback) {
       var _this = this;
       return db.transaction((function(tx) {
         return _this._delete_doc(tx, doc_id);
       }), (function(error) {
-        return console.log('remove transaction error', error);
+        console.log('remove transaction error', error);
+        if (typeof callback === "function") {
+          callback();
+        }
+        return void 0;
       }), (function(tx, result) {
         _this._localCollection.remove(doc_id);
-        return Meteor.BrowserMsg.send('Meteor.BrowserCollection.single', _this._name, doc_id);
+        Meteor.BrowserMsg.send('Meteor.BrowserCollection.single', _this._name, doc_id);
+        if (typeof callback === "function") {
+          callback();
+        }
+        return void 0;
       }));
     },
-    _remove_multiple: function(selector) {
+    _remove_multiple: function(selector, callback) {
       var compiledSelector, deleted,
         _this = this;
       compiledSelector = LocalCollection._compileSelector(selector);
@@ -294,7 +317,11 @@
           return void 0;
         });
       }), (function(error) {
-        return console.log(error);
+        console.log('remove transaction error', error);
+        if (typeof callback === "function") {
+          callback(error);
+        }
+        return void 0;
       }), (function() {
         var doc_id, _i, _len;
         for (_i = 0, _len = deleted.length; _i < _len; _i++) {

@@ -162,11 +162,14 @@ _.extend Meteor.BrowserSQLCollection.prototype,
       ((error) =>
         # TODO might be out of space?
         console.log 'insert transaction error', error
+        callback?(error)
+        undefined
       ),
       (=>
         @_localCollection.insert(doc)
         Meteor.BrowserMsg.send 'Meteor.BrowserCollection.single', @_name, doc._id
-        callback()
+        callback?()
+        undefined
       )
     )
     doc._id
@@ -192,7 +195,11 @@ _.extend Meteor.BrowserSQLCollection.prototype,
           )
         )
       ),
-      ((error) => console.log 'modify transaction error', error),
+      ((error) =>
+        console.log 'modify transaction error', error
+        callback?(error)
+        undefined
+      ),
       (=>
         @_cache_set doc_id, doc
         Meteor.BrowserMsg.send 'Meteor.BrowserCollection.single', @_name, doc_id
@@ -215,7 +222,11 @@ _.extend Meteor.BrowserSQLCollection.prototype,
               break unless options?.multi
           undefined
       ),
-      ((error) => console.log error),
+      ((error) =>
+        console.log 'update transaction error', error
+        callback?()
+        undefined
+      ),
       (=>
         for doc in modified_docs
           @_localCollection.update doc._id, doc
@@ -235,21 +246,25 @@ _.extend Meteor.BrowserSQLCollection.prototype,
       @_update_multiple selector, modifier, options, callback
     undefined
 
-  _remove_single: (doc_id) ->
+  _remove_single: (doc_id, callback) ->
     db.transaction(
       ((tx) =>
         @_delete_doc tx, doc_id
       ),
       ((error) =>
         console.log 'remove transaction error', error
+        callback?()
+        undefined
       ),
       ((tx, result) =>
         @_localCollection.remove(doc_id)
         Meteor.BrowserMsg.send 'Meteor.BrowserCollection.single', @_name, doc_id
+        callback?()
+        undefined
       )
     )
 
-  _remove_multiple: (selector) ->
+  _remove_multiple: (selector, callback) ->
     compiledSelector = LocalCollection._compileSelector(selector)
     deleted = []
     db.transaction(
@@ -261,7 +276,11 @@ _.extend Meteor.BrowserSQLCollection.prototype,
               deleted.push doc._id
           undefined
       ),
-      ((error) => console.log error),
+      ((error) =>
+        console.log 'remove transaction error', error
+        callback?(error)
+        undefined
+      ),
       (=>
         for doc_id in deleted
           @_localCollection.remove(doc_id)
