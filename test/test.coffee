@@ -172,9 +172,11 @@ test_update = (who) ->
     wait_for_step 'have foo'
 
   parent ->
+    log 'updating'
     @foo.update @doc_id, {def: 456}
 
   child1 ->
+    log 'observing'
     @foo.find().observe
       changed: (doc) ->
         log 'changed doc', doc

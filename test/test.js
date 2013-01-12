@@ -238,11 +238,13 @@
       return wait_for_step('have foo');
     });
     parent(function() {
+      log('updating');
       return this.foo.update(this.doc_id, {
         def: 456
       });
     });
     child1(function() {
+      log('observing');
       return this.foo.find().observe({
         changed: function(doc) {
           log('changed doc', doc);

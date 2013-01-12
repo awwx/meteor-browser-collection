@@ -94,6 +94,18 @@
         return typeof cb === "function" ? cb() : void 0;
       }));
     },
+    _cache_set: function(doc_id, doc) {
+      if (doc != null) {
+        if (this._localCollection.findOne(doc._id) != null) {
+          this._localCollection.update(doc._id, doc);
+        } else {
+          this._localCollection.insert(doc);
+        }
+      } else {
+        this._localCollection.remove(doc_id);
+      }
+      return void 0;
+    },
     _reload_single: function(doc_id) {
       var doc,
         _this = this;
@@ -107,15 +119,7 @@
       }), (function(error) {
         return console.log(error);
       }), (function() {
-        if (doc != null) {
-          if (_this._localCollection.findOne(doc._id) != null) {
-            return _this._localCollection.update(doc._id, doc);
-          } else {
-            return _this._localCollection.insert(doc);
-          }
-        } else {
-          return _this._localCollection.remove(doc_id);
-        }
+        return _this._cache_set(doc_id, doc);
       }));
     },
     _fetch_all_docs: function(tx, cb) {
@@ -186,7 +190,7 @@
       arg = 1 <= arguments.length ? __slice.call(arguments, 0) : [];
       return (_ref = this._localCollection).findOne.apply(_ref, arg);
     },
-    _update_single: function(doc_id, modifier) {
+    _update_single: function(doc_id, modifier, options, callback) {
       var doc,
         _this = this;
       doc = null;
@@ -202,10 +206,12 @@
       }), (function(error) {
         return console.log('modify transaction error', error);
       }), (function() {
-        if (doc != null) {
-          _this._localCollection.update(doc._id, doc);
-          return Meteor.BrowserMsg.send('Meteor.BrowserCollection.single', _this._name, doc._id);
+        _this._cache_set(doc_id, doc);
+        Meteor.BrowserMsg.send('Meteor.BrowserCollection.single', _this._name, doc_id);
+        if (typeof callback === "function") {
+          callback();
         }
+        return void 0;
       }));
     },
     _update_multiple: function(selector, modifier, options, callback) {
@@ -227,7 +233,7 @@
               }
             }
           }
-          return null;
+          return void 0;
         });
       }), (function(error) {
         return console.log(error);
@@ -238,7 +244,10 @@
           _this._localCollection.update(doc._id, doc);
         }
         Meteor.BrowserMsg.send('Meteor.BrowserCollection.reloadAll', _this._name);
-        return null;
+        if (typeof callback === "function") {
+          callback();
+        }
+        return void 0;
       }));
     },
     update: function(selector, modifier, options, callback) {
@@ -247,10 +256,11 @@
         options = {};
       }
       if (LocalCollection._selectorIsId(selector)) {
-        return this._update_single(selector, modifier);
+        this._update_single(selector, modifier, options, callback);
       } else {
-        return this._update_multiple(selector, modifier, options, callback);
+        this._update_multiple(selector, modifier, options, callback);
       }
+      return void 0;
     },
     remove: function(selector) {
       var doc_id,

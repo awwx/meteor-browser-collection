@@ -79,6 +79,16 @@ _.extend Meteor.BrowserSQLCollection.prototype,
       (=> cb?())
     )
 
+  _cache_set: (doc_id, doc) ->
+    if doc?
+      if @_localCollection.findOne(doc._id)?
+        @_localCollection.update doc._id, doc
+      else
+        @_localCollection.insert doc
+    else
+      @_localCollection.remove doc_id
+    undefined
+
   _reload_single: (doc_id) ->
     doc = null
     db.transaction(
@@ -94,13 +104,7 @@ _.extend Meteor.BrowserSQLCollection.prototype,
       ),
       ((error) => console.log error),
       (=>
-        if doc?
-          if @_localCollection.findOne(doc._id)?
-            @_localCollection.update doc._id, doc
-          else
-            @_localCollection.insert doc
-        else
-          @_localCollection.remove doc_id
+        @_cache_set doc_id, doc
       )
     )
 
@@ -167,7 +171,7 @@ _.extend Meteor.BrowserSQLCollection.prototype,
   findOne: (arg...) ->
     @_localCollection.findOne(arg...)
 
-  _update_single: (doc_id, modifier) ->
+  _update_single: (doc_id, modifier, options, callback) ->
     doc = null
     db.transaction(
       ((tx) =>
@@ -184,9 +188,10 @@ _.extend Meteor.BrowserSQLCollection.prototype,
       ),
       ((error) => console.log 'modify transaction error', error),
       (=>
-        if doc?
-          @_localCollection.update doc._id, doc
-          Meteor.BrowserMsg.send 'Meteor.BrowserCollection.single', @_name, doc._id
+        @_cache_set doc_id, doc
+        Meteor.BrowserMsg.send 'Meteor.BrowserCollection.single', @_name, doc_id
+        callback?()
+        undefined
       )
     )
 
@@ -202,14 +207,15 @@ _.extend Meteor.BrowserSQLCollection.prototype,
               @_store_doc tx, doc
               modified_docs.push doc
               break unless options?.multi
-          null
+          undefined
       ),
       ((error) => console.log error),
       (=>
         for doc in modified_docs
           @_localCollection.update doc._id, doc
         Meteor.BrowserMsg.send 'Meteor.BrowserCollection.reloadAll', @_name
-        null
+        callback?()
+        undefined
       )
     )
 
@@ -218,10 +224,10 @@ _.extend Meteor.BrowserSQLCollection.prototype,
       callback = options
       options = {}
     if LocalCollection._selectorIsId(selector)
-      @_update_single selector, modifier
+      @_update_single selector, modifier, options, callback
     else
       @_update_multiple selector, modifier, options, callback
-
+    undefined
 
   remove: (selector) ->
     unless LocalCollection._selectorIsId(selector)
