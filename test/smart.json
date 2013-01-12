@@ -10,6 +10,9 @@
     "git-commit-sha": {
       "git": "git://github.com/awwx/meteor-git-commit-sha.git"
     },
+    "setimmediate": {
+       "git": "git://github.com/awwx/meteor-setimmediate.git"
+    },
     "when": {},
     "windowtest": {
       "git": "git://github.com/awwx/meteor-windowtest.git"

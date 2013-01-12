@@ -30,7 +30,10 @@ Meteor.BrowserMsg.listen
   'Meteor.BrowserCollection.single': (collection_name, doc_id) ->
     collections[collection_name]?._reload_single(doc_id)
 
-#TODO return a promise
+  'Meteor.BrowserCollection.reloadAll': (collection_name) ->
+    collections[collection_name]?._reload_all()
+
+#TODO return a promise?
 Meteor.BrowserSQLCollection = (name, cb) ->
   if collections[name]?
     throw new Error('a BrowserCollection with this name has already been created: ' + name)
@@ -51,6 +54,12 @@ result_as_array = (result) ->
   a
 
 idOf = (doc) -> doc._id
+
+idMap = (arrayOfDocs) ->
+  result = {}
+  for doc in arrayOfDocs
+    result[idOf(doc)] = doc
+  result
 
 _.extend Meteor.BrowserSQLCollection.prototype,
 
@@ -102,7 +111,7 @@ _.extend Meteor.BrowserSQLCollection.prototype,
       ((tx, result) =>
         docs = []
         for i in [0 ... result.rows.length]
-          docs.push JSON.parse(result.rows.item(i))
+          docs.push JSON.parse(result.rows.item(i).document)
         cb(docs)
       )
     )
@@ -122,17 +131,12 @@ _.extend Meteor.BrowserSQLCollection.prototype,
       ),
       ((error) => console.log error),
       (=>
-        doc_ids = _.map(docs, idOf)
-        cache_ids = _.map(@_localCollection.find().fetch(), idOf)
-
-        toDelete = _.without(cache_ids, doc_ids)
-        @_localCollection.remove id for id in toDelete
-
-        for doc in docs
-          if doc._id in cache_ids
-            @_localCollection.update doc._id, doc
-          else
-            @_localCollection.insert doc
+        oldResults = idMap(@_localCollection.find().fetch())
+        newResults = idMap(docs)
+        LocalCollection._diffQueryUnordered oldResults, newResults,
+          added:   (newDoc) => @_localCollection.insert newDoc
+          changed: (newDoc) => @_localCollection.update newDoc._id, newDoc
+          removed: (oldDoc) => @_localCollection.remove oldDoc._id
       )
     )
 
@@ -188,20 +192,24 @@ _.extend Meteor.BrowserSQLCollection.prototype,
 
   _update_multiple: (selector, modifier, options, callback) ->
     compiledSelector = LocalCollection._compileSelector(selector)
+    modified_docs = []
     db.transaction(
       ((tx) =>
         @_fetch_all_docs tx, (docs) =>
-          modified_docs = []
           for doc in docs
             if compiledSelector(doc)
               LocalCollection._modify(doc, modifier)
               @_store_doc tx, doc
+              modified_docs.push doc
               break unless options?.multi
           null
       ),
       ((error) => console.log error),
       (=>
-        # update local collection
+        for doc in modified_docs
+          @_localCollection.update doc._id, doc
+        Meteor.BrowserMsg.send 'Meteor.BrowserCollection.reloadAll', @_name
+        null
       )
     )
 

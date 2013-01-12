@@ -186,6 +186,57 @@ test_update = (who) ->
 
   steppers.run who
 
+test_update_multiple = (who) ->
+
+  steppers = setup_test 'update_multiple', who
+  {parent, child1} = steppers.steppers
+
+  parent ->
+    @foo = new Meteor.BrowserSQLCollection 'foo', =>
+      @doc_id1 = @foo.insert {abc: 11, color: 'red'}, =>
+        @doc_id2 = @foo.insert {abc: 22, color: 'red'}, =>
+          @doc_id3 = @foo.insert {abc: 33, color: 'green'}, =>
+            @doc_id4 = @foo.insert {abc: 44, color: 'green'}, =>
+              Meteor.BrowserMsg.send 'test_step', 'child1', 'start watching foo'
+    null
+
+  child1 ->
+    wait_for_step 'start watching foo'
+
+  child1 ->
+    @foo = new Meteor.BrowserSQLCollection 'foo', =>
+      if @foo.find().count() is 4
+        Meteor.BrowserMsg.send 'test_step', 'parent', 'have foo'
+
+  parent ->
+    wait_for_step 'have foo'
+
+  parent ->
+    @foo.update {color: 'red'}, {$set: {abc: 99}}, {multi: true}
+
+  child1 ->
+    next = _when.defer()
+    @number_changed = 0
+    @foo.find().observe
+      changed: (doc) =>
+        if @number_changed == 0
+          # We expect all observe events to be delivered within *this* tick of the
+          # event loop, so continue in the *next* tick
+          setImmediate => next.resolve()
+        ++@number_changed
+    next.promise
+
+  child1 ->
+   if @number_changed is 2
+     Meteor.BrowserMsg.send 'test_step', 'parent', 'got it'
+   else
+     log 'FAILED: expected number changed to be 2, but was', @number_changed
+
+  parent ->
+    wait_for_step 'got it'
+
+  steppers.run who
+
 test_remove = (who) ->
   steppers = setup_test 'remove', who
   {parent, child1} = steppers.steppers
@@ -250,6 +301,8 @@ switch window.location.pathname
           test_insert('child1')
         else if testName is 'update'
           test_update('child1')
+        else if testName is 'update_multiple'
+          test_update_multiple('child1')
         else if testName is 'remove'
           test_remove('child1')
 
@@ -284,4 +337,5 @@ addTest = (testName, impl) ->
 
 addTest 'insert', test_insert
 addTest 'update', test_update
+addTest 'update_multiple', test_update_multiple
 addTest 'remove', test_remove
