@@ -126,6 +126,12 @@ _.extend Meteor.BrowserSQLCollection.prototype,
       [JSON.stringify(doc), doc._id]
     )
 
+  _delete_doc: (tx, doc_id) ->
+    tx.executeSql(
+      'DELETE FROM documents WHERE id=?',
+      [doc_id]
+    )
+
   _reload_all: ->
     docs = null
     db.transaction(
@@ -229,16 +235,10 @@ _.extend Meteor.BrowserSQLCollection.prototype,
       @_update_multiple selector, modifier, options, callback
     undefined
 
-  remove: (selector) ->
-    unless LocalCollection._selectorIsId(selector)
-      throw new Error('not implemented yet')
-    doc_id = selector
+  _remove_single: (doc_id) ->
     db.transaction(
       ((tx) =>
-        tx.executeSql(
-          'DELETE FROM documents WHERE id=?',
-          [doc_id]
-        )
+        @_delete_doc tx, doc_id
       ),
       ((error) =>
         console.log 'remove transaction error', error
@@ -248,6 +248,36 @@ _.extend Meteor.BrowserSQLCollection.prototype,
         Meteor.BrowserMsg.send 'Meteor.BrowserCollection.single', @_name, doc_id
       )
     )
+
+  _remove_multiple: (selector) ->
+    compiledSelector = LocalCollection._compileSelector(selector)
+    deleted = []
+    db.transaction(
+      ((tx) =>
+        @_fetch_all_docs tx, (docs) =>
+          for doc in docs
+            if compiledSelector(doc)
+              @_delete_doc tx, doc._id
+              deleted.push doc._id
+          undefined
+      ),
+      ((error) => console.log error),
+      (=>
+        for doc_id in deleted
+          @_localCollection.remove(doc_id)
+        Meteor.BrowserMsg.send 'Meteor.BrowserCollection.reloadAll', @_name
+        callback?()
+        undefined
+      )
+    )
+
+  remove: (selector, callback) ->
+    return unless selector?
+    if LocalCollection._selectorIsId(selector)
+      @_remove_single(selector, callback)
+    else
+      @_remove_multiple(selector, callback)
+    undefined
 
 Meteor.BrowserSQLCollection.erase = ->
   done = _when.defer()

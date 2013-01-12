@@ -136,6 +136,9 @@
     _store_doc: function(tx, doc) {
       return tx.executeSql('UPDATE documents SET document=? WHERE id=?', [JSON.stringify(doc), doc._id]);
     },
+    _delete_doc: function(tx, doc_id) {
+      return tx.executeSql('DELETE FROM documents WHERE id=?', [doc_id]);
+    },
     _reload_all: function() {
       var docs,
         _this = this;
@@ -262,21 +265,59 @@
       }
       return void 0;
     },
-    remove: function(selector) {
-      var doc_id,
-        _this = this;
-      if (!LocalCollection._selectorIsId(selector)) {
-        throw new Error('not implemented yet');
-      }
-      doc_id = selector;
+    _remove_single: function(doc_id) {
+      var _this = this;
       return db.transaction((function(tx) {
-        return tx.executeSql('DELETE FROM documents WHERE id=?', [doc_id]);
+        return _this._delete_doc(tx, doc_id);
       }), (function(error) {
         return console.log('remove transaction error', error);
       }), (function(tx, result) {
         _this._localCollection.remove(doc_id);
         return Meteor.BrowserMsg.send('Meteor.BrowserCollection.single', _this._name, doc_id);
       }));
+    },
+    _remove_multiple: function(selector) {
+      var compiledSelector, deleted,
+        _this = this;
+      compiledSelector = LocalCollection._compileSelector(selector);
+      deleted = [];
+      return db.transaction((function(tx) {
+        return _this._fetch_all_docs(tx, function(docs) {
+          var doc, _i, _len;
+          for (_i = 0, _len = docs.length; _i < _len; _i++) {
+            doc = docs[_i];
+            if (compiledSelector(doc)) {
+              _this._delete_doc(tx, doc._id);
+              deleted.push(doc._id);
+            }
+          }
+          return void 0;
+        });
+      }), (function(error) {
+        return console.log(error);
+      }), (function() {
+        var doc_id, _i, _len;
+        for (_i = 0, _len = deleted.length; _i < _len; _i++) {
+          doc_id = deleted[_i];
+          _this._localCollection.remove(doc_id);
+        }
+        Meteor.BrowserMsg.send('Meteor.BrowserCollection.reloadAll', _this._name);
+        if (typeof callback === "function") {
+          callback();
+        }
+        return void 0;
+      }));
+    },
+    remove: function(selector, callback) {
+      if (selector == null) {
+        return;
+      }
+      if (LocalCollection._selectorIsId(selector)) {
+        this._remove_single(selector, callback);
+      } else {
+        this._remove_multiple(selector, callback);
+      }
+      return void 0;
     }
   });
 

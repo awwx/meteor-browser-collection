@@ -188,6 +188,13 @@ test_update = (who) ->
 
   steppers.run who
 
+insert_four = (collection, cb) ->
+  doc_id1 = collection.insert {abc: 11, color: 'red'}, =>
+    doc_id2 = collection.insert {abc: 22, color: 'red'}, =>
+      doc_id3 = collection.insert {abc: 33, color: 'green'}, =>
+        doc_id4 = collection.insert {abc: 44, color: 'green'}, =>
+          cb(null, {doc_id1, doc_id2, doc_id3, doc_id4})
+
 test_update_multiple = (who) ->
 
   steppers = setup_test 'update_multiple', who
@@ -195,11 +202,8 @@ test_update_multiple = (who) ->
 
   parent ->
     @foo = new Meteor.BrowserSQLCollection 'foo', =>
-      @doc_id1 = @foo.insert {abc: 11, color: 'red'}, =>
-        @doc_id2 = @foo.insert {abc: 22, color: 'red'}, =>
-          @doc_id3 = @foo.insert {abc: 33, color: 'green'}, =>
-            @doc_id4 = @foo.insert {abc: 44, color: 'green'}, =>
-              Meteor.BrowserMsg.send 'test_step', 'child1', 'start watching foo'
+      insert_four @foo, =>
+        Meteor.BrowserMsg.send 'test_step', 'child1', 'start watching foo'
     null
 
   child1 ->
@@ -276,6 +280,54 @@ test_remove = (who) ->
 
   steppers.run who
 
+test_remove_multiple = (who) ->
+  steppers = setup_test 'remove_multiple', who
+  {parent, child1} = steppers.steppers
+
+  parent ->
+    @foo = new Meteor.BrowserSQLCollection 'foo', =>
+      insert_four @foo, =>
+        Meteor.BrowserMsg.send 'test_step', 'child1', 'start watching foo'
+    null
+
+  child1 ->
+    wait_for_step 'start watching foo'
+
+  child1 ->
+    @foo = new Meteor.BrowserSQLCollection 'foo', =>
+      if @foo.find().count() is 4
+        Meteor.BrowserMsg.send 'test_step', 'parent', 'have foo'
+    null
+
+  parent ->
+    wait_for_step 'have foo'
+
+  parent ->
+    @foo.remove {color: 'red'}
+
+  child1 ->
+    next = _when.defer()
+    log 'watching for removed docs'
+    @number_removed = 0
+    @foo.find().observe
+      removed: (doc) =>
+        log 'doc removed', doc
+        if @number_removed is 0
+          setImmediate => next.resolve()
+        ++@number_removed
+    next.promise
+
+  child1 ->
+    if @number_removed is 2
+      Meteor.BrowserMsg.send 'test_step', 'parent', 'got it'
+    else
+      log 'FAILED: expected number removed to be 2, but was', @number_removed
+
+  parent ->
+    wait_for_step 'got it'
+
+  steppers.run who
+
 Template.route.show_parent = -> Session.equals('show', 'parent')
 Template.route.show_child1 = -> Session.equals('show', 'child1')
 
@@ -307,6 +359,8 @@ switch window.location.pathname
           test_update_multiple('child1')
         else if testName is 'remove'
           test_remove('child1')
+        else if testName is 'remove_multiple'
+          test_remove_multiple('child1')
 
 child1_ready = _when.defer()
 
@@ -341,3 +395,4 @@ addTest 'insert', test_insert
 addTest 'update', test_update
 addTest 'update_multiple', test_update_multiple
 addTest 'remove', test_remove
+addTest 'remove_multiple', test_remove_multiple
