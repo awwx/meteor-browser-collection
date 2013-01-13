@@ -83,7 +83,7 @@ setup_test = (testName, who) ->
   parent ->
     log 'begin test ' + testName
     Meteor.BrowserCollection.reset()
-    Meteor.BrowserCollection.erase()
+    Meteor.BrowserCollection.erase_database()
 
   parent ->
     log 'sending run_test'
@@ -177,6 +177,7 @@ test_insert = (who) ->
     true
 
   steppers.run(who)
+
 
 test_update = (who) ->
 
@@ -423,11 +424,11 @@ addTest = (testName, impl) ->
       console.log e.stack
     check test, onComplete, promise if promise?
 
-firefox = /Firefox/.test(navigator.userAgent)
+sql = Meteor.BrowserCollection._store.implementation is 'SQL'
 
-addTest 'documents are persistent', test_persistent unless firefox
-addTest 'insert', test_insert                       unless firefox
-addTest 'update', test_update                       unless firefox
-addTest 'update_multiple', test_update_multiple     unless firefox
-addTest 'remove', test_remove                       unless firefox
-addTest 'remove_multiple', test_remove_multiple     unless firefox
+addTest 'documents are persistent', test_persistent
+addTest 'insert', test_insert                       if sql
+addTest 'update', test_update
+addTest 'update_multiple', test_update_multiple     if sql
+addTest 'remove', test_remove                       if sql
+addTest 'remove_multiple', test_remove_multiple     if sql

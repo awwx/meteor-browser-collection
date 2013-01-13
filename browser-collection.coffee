@@ -1,5 +1,30 @@
 _when = @when
 
+stringify = (x) ->
+  if x instanceof DOMException
+    x.toString()
+  else if x?.stack?
+    JSON.stringify(x.message) + ":\n" + x.stack.toString()
+  else if _.isString(x)
+    x
+  else if _.isUndefined(x)
+    'undefined'
+  else if _.isNull(x)
+    'null'
+  else
+    try
+      return JSON.stringify(x)
+    catch e
+      return x.toString()
+
+log = (args...) ->
+  args = _.map(args, stringify)
+  console.log args...
+
+catcherr = (fn) ->
+  _when.resolve().then(fn)
+
+
 # assumes "onsuccess" is called only once, so don't use for cursors
 
 request_to_promise = (req) ->
@@ -8,10 +33,25 @@ request_to_promise = (req) ->
   req.onsuccess = (event) -> pend.resolve(req.result)
   pend.promise
 
+promize = (fn) ->
+  deferred = _when.defer()
+  req = null
+  try
+    req = fn()
+  catch e
+    log 'promize error', e
+    deferred.reject(e)
+  if req?
+    req.onerror   = (event) -> deferred.reject()  #TODO reason: req.error
+    req.onsuccess = (event) -> deferred.resolve(req.result)
+  deferred.promise
+
 
 class IndexedStore
 
   constructor: ->
+
+  implementation: 'IndexedDB'
 
   delete_database: (database_name) ->
     request_to_promise(window.indexedDB.deleteDatabase(database_name))
@@ -22,15 +62,32 @@ class IndexedStore
       onUpgradeNeeded(event.target.result)
     request_to_promise req
 
-  transaction: (withTransaction) ->
+  transaction: (desc, withTransaction) ->
     deferred = _when.defer()
+    log ">> #{desc} begin transaction"
     tx = @idb.transaction(['documents'], 'readwrite')
-    tx.oncomplete = => deferred.resolve()
-    tx.onerror = (event) => deferred.reject(event.target.errorCode)
+    tx.oncomplete = =>
+      log "<< #{desc} transaction complete"
+      deferred.resolve()
+    tx.onerror = (event) =>
+      log '<< #{desc} transaction error', event
+      deferred.reject(event.target.errorCode)
+    valueOrPromise = catcherr -> withTransaction(tx)
     _when(
-      withTransaction(tx),
+      valueOrPromise,
       null,
-      ((error) => deferred.reject(error))
+      ((error) =>
+        log "-- #{desc} error in transaction:", error
+        deferred.reject(error)
+      )
+    )
+    deferred.promise.then(
+      (=>
+        log "-- #{desc} transaction promise resolved"
+      ),
+      ((error) =>
+        log "-- #{desc} transaction promise rejected:", error
+      )
     )
     deferred.promise
 
@@ -41,19 +98,19 @@ class IndexedStore
     request_to_promise store.add(val)
 
   put: (store, val) ->
-    require_to_promise store.put(val)
+    promize -> store.put(val)
 
   del: (store, key) ->
     require_to_promise store.delete(key)
 
   setup_database: (db) ->
-    console.log '*** setting up database'
-    store = db.createObjectStore('documents', {keyPath: '_id'})
+    log '*** setting up IndexDB database'
+    store = db.createObjectStore('documents', {keyPath: 'id'})
     store.createIndex('collection', 'collection', {unique: false})
     undefined
 
   open: ->
-    console.log '*** opening database'
+    log '*** opening IndexDB database'
     @open_database('Meteor.BrowserCollection', 1, (db) => @setup_database(db))
     .then((db) =>
       @idb = db
@@ -61,35 +118,71 @@ class IndexedStore
     )
 
   dump: ->
-    @transaction (tx) =>
+    @transaction('dump', (tx) =>
       documents = tx.objectStore('documents')
-      console.log 'documents', documents
       req = documents.openCursor()
-      req.onerror = (event) -> console.log 'dump error', event
+      req.onerror = (event) ->
+        log 'dump error', event
       req.onsuccess = (event) ->
         cursor = req.result
         if cursor?
-          console.log cursor.value
+          log cursor.value
           cursor.continue()
       undefined
+    )
 
   fetch_all_docs: (collectionName, tx) ->
+    deferred = _when.defer()
+    docs = []
     documents = tx.objectStore('documents')
-    request_to_promise(documents.index('collection').openCursor(collectionName))
-    .then((cursor) =>
-      console.log 'have cursor', cursor
+    req = documents.index('collection').openCursor(collectionName)
+    req.onerror = (event) ->
+      log 'fetch_all_docs error', event
+      deferred.reject()
+    req.onsuccess = (event) ->
+      cursor = req.result
+      if cursor?
+        docs.push cursor.value.doc
+        cursor.continue()
+      else
+        deferred.resolve(docs)
       undefined
-    )
-    _when.resolve([])
+    deferred.promise
+
+  fetch_doc_by_id: (tx, collectionName, doc_id) ->
+    documents = tx.objectStore('documents')
+    @get(documents, doc_id)
+    .then((document) => document.doc)
 
   insert_doc: (collectionName, tx, doc) ->
     documents = tx.objectStore('documents')
-    @add(documents, doc)
+    @add(documents, {id: doc._id, collection: collectionName, doc: doc})
+
+  update_doc: (tx, collectionName, doc) ->
+    catcherr =>
+      documents = tx.objectStore('documents')
+      @put(documents, {id: doc._id, collection: collectionName, doc: doc})
+
+  erase_database: ->
+    @transaction 'erase_database', (tx) =>
+      documents = tx.objectStore('documents')
+      req = documents.openCursor()
+      req.onerror = (event) ->
+        log 'erase_database error', event
+        # TODO abort transaction?
+      req.onsuccess = (event) ->
+        cursor = req.result
+        if cursor?
+          documents.delete(cursor.key)
+          cursor.continue()
+      undefined
 
 
 class SQLStore
 
   constructor: ->
+
+  implementation: 'SQL'
 
   open: ->
     try
@@ -119,7 +212,7 @@ class SQLStore
         )
       ),
       ((error) =>
-        console.log 'create database error', error
+        log 'create database error', error
         result.reject(error)
       ),
       (=>
@@ -127,7 +220,7 @@ class SQLStore
       )
     result.promise
 
-  transaction: (withTransaction) ->
+  transaction: (desc, withTransaction) ->
     deferred = _when.defer()
     @sqldb.transaction(
       ((tx) =>
@@ -163,10 +256,51 @@ class SQLStore
     )
     deferred.promise
 
+  fetch_doc_by_id: (tx, collectionName, doc_id) ->
+    deferred = _when.defer()
+    tx.executeSql(
+      'SELECT document FROM documents WHERE collection=? AND id=?',
+      [collectionName, doc_id],
+      ((tx, result) =>
+        if result.rows.length is 1
+          deferred.resolve(JSON.parse(result.rows.item(0).document))
+        else
+          deferred.resolve(null)
+        undefined
+      )
+    )
+    deferred.promise
+
   insert_doc: (collectionName, tx, doc) ->
-    tx.executeSql 'INSERT INTO documents (id, collection, document) VALUES (?, ?, ?)',
+    tx.executeSql(
+      'INSERT INTO documents (id, collection, document) VALUES (?, ?, ?)',
       [doc._id, collectionName, JSON.stringify(doc)]
+    )
     undefined
+
+  update_doc: (tx, collectionName, doc) ->
+    tx.executeSql(
+      'UPDATE documents SET document=? WHERE id=?',
+      [JSON.stringify(doc), doc._id]
+    )
+    undefined
+
+  erase_database: ->
+    deferred = _when.defer()
+    @sqldb.transaction(
+      ((tx) -> tx.executeSql('DELETE FROM documents')),
+      ((error) ->
+        log 'erase transaction error', error
+        deferred.reject(error)
+      ),
+      (->
+        deferred.resolve()
+      )
+    )
+    deferred.promise
+
+  dump: ->
+    _when.resolve()
 
 
 if window.indexedDB?
@@ -174,7 +308,7 @@ if window.indexedDB?
 else if window.openDatabase?
   store = new SQLStore()
 else
-  console.log 'BrowserCollection storage not supported'
+  log 'BrowserCollection storage not supported'
   store = null
 
 window.store = store
@@ -182,7 +316,7 @@ window.store = store
 if store?
   store.open()
   .otherwise((error) ->
-    console.log 'BrowserCollection database open error', error
+    log 'BrowserCollection database open error', error
     store = null
   )
 
@@ -208,6 +342,8 @@ Meteor.BrowserCollection = (name, cb) ->
   @_load(cb)
   undefined
 
+Meteor.BrowserCollection._store = store
+
 each_sql_result = (result, callback) ->
   for i in [0 ... result.rows.length]
     callback(result.rows.item(i))
@@ -229,24 +365,24 @@ idMap = (arrayOfDocs) ->
 _.extend Meteor.BrowserCollection.prototype,
 
   _load: (cb) ->
+    docs = null
     store.transaction(
+      '_load',
       ((tx) =>
         store.fetch_all_docs(@_name, tx)
-        .then((docs) =>
-          for doc in docs
-            @_localCollection.insert(doc)
-          undefined
-        )
+        .then((_docs) => docs = _docs)
       )
     )
     .then(
       (=>
+        for doc in docs
+          @_localCollection.insert(doc)
         cb?()
         undefined
       ),
       ((error) =>
-        console.log 'BrowserCollection load transaction error', error
-        console.log error.stack if error.stack?
+        log 'BrowserCollection load transaction error', error
+        log error.stack if error.stack?
         cb?(error)
         undefined
       ),
@@ -264,20 +400,25 @@ _.extend Meteor.BrowserCollection.prototype,
 
   _reload_single: (doc_id) ->
     doc = null
-    store.sqldb.transaction(
+    store.transaction(
+      '_reload_single',
       ((tx) =>
-        tx.executeSql(
-          'SELECT document FROM documents WHERE collection=? AND id=?',
-          [@_name, doc_id],
-          ((tx, result) =>
-            if result.rows.length is 1
-              doc = JSON.parse(result.rows.item(0).document)
-          )
+        store.fetch_doc_by_id(tx, @_name, doc_id)
+        .then((_doc) =>
+          doc = _doc
+          undefined
         )
-      ),
-      ((error) => console.log error),
+        undefined
+      )
+    )
+    .then(
       (=>
         @_cache_set doc_id, doc
+        undefined
+      ),
+      ((error) =>
+        log '_reload_single transaction error', error
+        _when.reject(error)
       )
     )
 
@@ -293,12 +434,6 @@ _.extend Meteor.BrowserCollection.prototype,
       )
     )
 
-  _update_doc: (tx, doc) ->
-    tx.executeSql(
-      'UPDATE documents SET document=? WHERE id=?',
-      [JSON.stringify(doc), doc._id]
-    )
-
   _delete_doc: (tx, doc_id) ->
     tx.executeSql(
       'DELETE FROM documents WHERE id=?',
@@ -312,7 +447,7 @@ _.extend Meteor.BrowserCollection.prototype,
         @_fetch_all_docs tx, (_docs) =>
           docs = _docs
       ),
-      ((error) => console.log error),
+      ((error) => log '_reload_all transaction error', error),
       (=>
         oldResults = idMap(@_localCollection.find().fetch())
         newResults = idMap(docs)
@@ -328,6 +463,7 @@ _.extend Meteor.BrowserCollection.prototype,
       throw new Error 'inserted doc should not yet have an _id attribute'
     doc._id = LocalCollection.uuid()
     store.transaction(
+      'insert',
       ((tx) =>
         store.insert_doc(@_name, tx, doc)
       )
@@ -341,7 +477,7 @@ _.extend Meteor.BrowserCollection.prototype,
       ),
       ((error) =>
         # TODO might be out of space?
-        console.log 'insert transaction error', error
+        log 'insert transaction error', error
         callback?(error)
         undefined
       )
@@ -356,55 +492,57 @@ _.extend Meteor.BrowserCollection.prototype,
 
   _update_single: (doc_id, modifier, options, callback) ->
     doc = null
-    store.sqldb.transaction(
+    store.transaction(
+      '_update_single'
       ((tx) =>
-        tx.executeSql(
-          'SELECT document FROM documents WHERE id=?',
-          [doc_id],
-          ((tx, result) =>
-            return if result.rows.length isnt 1
-            doc = JSON.parse(result.rows.item(0).document)
-            LocalCollection._modify(doc, modifier)
-            @_update_doc tx, doc
-          )
+        store.fetch_doc_by_id(tx, @_name, doc_id)
+        .then((_doc) =>
+          doc = _doc
+          LocalCollection._modify(doc, modifier)
+          store.update_doc tx, @_name, doc
         )
-      ),
-      ((error) =>
-        console.log 'modify transaction error', error
-        callback?(error)
-        undefined
-      ),
+      )
+    )
+    .then(
       (=>
         @_cache_set doc_id, doc
         Meteor.BrowserMsg.send 'Meteor.BrowserCollection.single', @_name, doc_id
         callback?()
         undefined
-      )
+      ),
+      ((error) =>
+        log 'update transaction error', error
+        callback?(error)
+        undefined
+      ),
     )
 
   _update_multiple: (selector, modifier, options, callback) ->
     compiledSelector = LocalCollection._compileSelector(selector)
     modified_docs = []
-    store.sqldb.transaction(
+    store.transaction(
+      '_update_multiple',
       ((tx) =>
         @_fetch_all_docs tx, (docs) =>
           for doc in docs
             if compiledSelector(doc)
               LocalCollection._modify(doc, modifier)
-              @_update_doc tx, doc
+              store.update_doc tx, @_name, doc
               modified_docs.push doc
               break unless options?.multi
           undefined
-      ),
-      ((error) =>
-        console.log 'update transaction error', error
-        callback?()
-        undefined
-      ),
+      )
+    )
+    .then(
       (=>
         for doc in modified_docs
           @_localCollection.update doc._id, doc
         Meteor.BrowserMsg.send 'Meteor.BrowserCollection.reloadAll', @_name
+        callback?()
+        undefined
+      ),
+      ((error) =>
+        log 'update transaction error', error
         callback?()
         undefined
       )
@@ -426,7 +564,7 @@ _.extend Meteor.BrowserCollection.prototype,
         @_delete_doc tx, doc_id
       ),
       ((error) =>
-        console.log 'remove transaction error', error
+        log 'remove transaction error', error
         callback?()
         undefined
       ),
@@ -451,7 +589,7 @@ _.extend Meteor.BrowserCollection.prototype,
           undefined
       ),
       ((error) =>
-        console.log 'remove transaction error', error
+        log 'remove transaction error', error
         callback?(error)
         undefined
       ),
@@ -472,23 +610,11 @@ _.extend Meteor.BrowserCollection.prototype,
       @_remove_multiple(selector, callback)
     undefined
 
-Meteor.BrowserCollection.erase = ->
-  done = _when.defer()
+Meteor.BrowserCollection.erase_database = ->
   # TODO not good if other windows already have a collection open
   unless _.isEmpty(collections)
-    throw new Error("call erase() before opening any collections")
-  store.sqldb.transaction(
-    ((tx) -> tx.executeSql('DELETE FROM documents')),
-    ((error) ->
-      console.log 'erase transaction error', error
-      done.reject(error)
-    ),
-    (->
-      console.log 'erase transaction success'
-      done.resolve()
-    )
-  )
-  done.promise
+    throw new Error("call erase_database() before opening any collections")
+  store.erase_database()
 
 Meteor.BrowserCollection.reset = ->
   #TODO dispose existing collections?
