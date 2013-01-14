@@ -19,14 +19,24 @@ Supported Browsers
 Browsers need to support either
 [IndexedDB](http://caniuse.com/#feat=indexeddb)
 or
-[Web SQL Database](http://caniuse.com/#feat=sql-storage):
+[Web SQL Database](http://caniuse.com/#feat=sql-storage),
+and thus in theory should work with:
 
 * Android 2.1+
 * Chrome 23+
 * Firefox 16+
 * IE 10
 * iOS Safari 3.2+
+* Opera 12.1+
 * Safari 5.1+
+
+Tested with
+
+* Android 2.3
+* Chrome 23
+* Firefox 18
+* iOS Safari 5.1
+* Safari 5
 
 
 Safe Updates
