@@ -72,13 +72,12 @@ read for the update; otherwise the entire collection of documents is
 retrieved for each update.
 
 
-API
----
+No Local Updates
+----------------
 
-The API is similar to Meteor.Collection.  An important difference is
-that updates are *not* applied to the local collection before being
-stored in the browser database.  With a Meteor.Collection, code will
-see local updates immediately:
+A difference with Meteor.Collection is that updates are *not* applied
+to the local collection before being stored in the browser database.
+With a Meteor.Collection, code will see local updates immediately:
 
     var id = collection.insert({a: 1, b: 2});
     var doc = collection.findOne(id);
@@ -90,6 +89,9 @@ update has been performed:
       var doc = collection.findOne(id);
     });
 
+
+API
+---
 
 `new Meteor.BrowserCollection(name, [callback])`
 
