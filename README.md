@@ -35,6 +35,7 @@ Tested with
 * Android 2.3
 * Chrome 23
 * Firefox 18
+* IE 10
 * iOS Safari 5.1
 * Safari 5
 
