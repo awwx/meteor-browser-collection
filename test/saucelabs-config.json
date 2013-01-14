@@ -30,6 +30,16 @@
       "platform": "Windows 2008"
     },
     {
+      "browserName": "firefox",
+      "platform": "Windows 2012",
+      "version": "18"
+    },
+    {
+      "browserName: "internet explorer",
+      "platform": "Windows 2012",
+      "version": "10"
+    },
+    {
       "browserName": "safari",
       "platform": "Mac 10.6",
       "version": "5"

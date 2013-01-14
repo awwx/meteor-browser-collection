@@ -82,8 +82,8 @@ setup_test = (testName, who) ->
 
   parent ->
     log 'begin test ' + testName
-    Meteor.BrowserSQLCollection.reset()
-    Meteor.BrowserSQLCollection.erase()
+    Meteor.BrowserCollection.reset()
+    Meteor.BrowserCollection.erase_database()
 
   parent ->
     log 'sending run_test'
@@ -95,7 +95,7 @@ setup_test = (testName, who) ->
     wait_for_step 'run test'
 
   child1 ->
-    Meteor.BrowserSQLCollection.reset()
+    Meteor.BrowserCollection.reset()
     Meteor.BrowserMsg.send 'test_step', 'parent', 'child1 ready'
 
   parent ->
@@ -103,13 +103,43 @@ setup_test = (testName, who) ->
 
   steppers
 
+
+test_persistent = (who) ->
+  steppers = setup_test 'persistent', who
+  {parent, child1} = steppers.steppers
+
+  parent ->
+    @foo = new Meteor.BrowserCollection 'foo', =>
+      insert_four @foo, =>
+        Meteor.BrowserMsg.send 'test_step', 'child1', 'collection created'
+
+  child1 ->
+    wait_for_step 'collection created'
+
+  child1 ->
+    @foo = new Meteor.BrowserCollection 'foo', =>
+      if (count = @foo.find().count()) is 4
+        Meteor.BrowserMsg.send 'test_step', 'parent', 'got it'
+      else
+        log 'FAILED: expected 4 documents, but found', count
+
+  parent ->
+    wait_for_step 'got it'
+
+  parent ->
+    log 'all done!'
+    true
+
+  steppers.run(who)
+
+
 test_insert = (who) ->
 
   steppers = setup_test 'insert', who
   {parent, child1} = steppers.steppers
 
   parent ->
-    @foo = new Meteor.BrowserSQLCollection 'foo', ->
+    @foo = new Meteor.BrowserCollection 'foo', ->
       Meteor.BrowserMsg.send 'test_step', 'child1', 'collection created'
 
   child1 ->
@@ -118,7 +148,7 @@ test_insert = (who) ->
   child1 ->
     done = _when.defer()
     log 'starting test_insert'
-    @foo = new Meteor.BrowserSQLCollection 'foo', ->
+    @foo = new Meteor.BrowserCollection 'foo', ->
       Meteor.BrowserMsg.send 'test_step', 'parent', 'child1 is ready to start test_insert'
       done.resolve()
     done.promise
@@ -148,13 +178,14 @@ test_insert = (who) ->
 
   steppers.run(who)
 
+
 test_update = (who) ->
 
   steppers = setup_test 'update', who
   {parent, child1} = steppers.steppers
 
   parent ->
-    @foo = new Meteor.BrowserSQLCollection 'foo', =>
+    @foo = new Meteor.BrowserCollection 'foo', =>
       @doc_id = @foo.insert {abc: 123}, ->
         Meteor.BrowserMsg.send 'test_step', 'child1', 'start watching foo'
       log 'inserted', @doc_id
@@ -164,7 +195,7 @@ test_update = (who) ->
     wait_for_step 'start watching foo'
 
   child1 ->
-    @foo = new Meteor.BrowserSQLCollection 'foo', =>
+    @foo = new Meteor.BrowserCollection 'foo', =>
       if @foo.findOne().abc is 123
         Meteor.BrowserMsg.send 'test_step', 'parent', 'have foo'
 
@@ -201,7 +232,7 @@ test_update_multiple = (who) ->
   {parent, child1} = steppers.steppers
 
   parent ->
-    @foo = new Meteor.BrowserSQLCollection 'foo', =>
+    @foo = new Meteor.BrowserCollection 'foo', =>
       insert_four @foo, =>
         Meteor.BrowserMsg.send 'test_step', 'child1', 'start watching foo'
     null
@@ -210,7 +241,7 @@ test_update_multiple = (who) ->
     wait_for_step 'start watching foo'
 
   child1 ->
-    @foo = new Meteor.BrowserSQLCollection 'foo', =>
+    @foo = new Meteor.BrowserCollection 'foo', =>
       if @foo.find().count() is 4
         Meteor.BrowserMsg.send 'test_step', 'parent', 'have foo'
 
@@ -248,7 +279,7 @@ test_remove = (who) ->
   {parent, child1} = steppers.steppers
 
   parent ->
-    @foo = new Meteor.BrowserSQLCollection 'foo', =>
+    @foo = new Meteor.BrowserCollection 'foo', =>
       @doc_id = @foo.insert {abc: 123}, ->
         Meteor.BrowserMsg.send 'test_step', 'child1', 'start watching foo'
     null
@@ -257,7 +288,7 @@ test_remove = (who) ->
     wait_for_step 'start watching foo'
 
   child1 ->
-    @foo = new Meteor.BrowserSQLCollection 'foo', =>
+    @foo = new Meteor.BrowserCollection 'foo', =>
       if @foo.findOne().abc is 123
         Meteor.BrowserMsg.send 'test_step', 'parent', 'have foo'
     null
@@ -285,7 +316,7 @@ test_remove_multiple = (who) ->
   {parent, child1} = steppers.steppers
 
   parent ->
-    @foo = new Meteor.BrowserSQLCollection 'foo', =>
+    @foo = new Meteor.BrowserCollection 'foo', =>
       insert_four @foo, =>
         Meteor.BrowserMsg.send 'test_step', 'child1', 'start watching foo'
     null
@@ -294,7 +325,7 @@ test_remove_multiple = (who) ->
     wait_for_step 'start watching foo'
 
   child1 ->
-    @foo = new Meteor.BrowserSQLCollection 'foo', =>
+    @foo = new Meteor.BrowserCollection 'foo', =>
       if @foo.find().count() is 4
         Meteor.BrowserMsg.send 'test_step', 'parent', 'have foo'
     null
@@ -351,7 +382,9 @@ switch window.location.pathname
     Meteor.BrowserMsg.listen run_test: (who, testName) ->
       log 'received run_test', who, testName
       if who is 'child1'
-        if testName is 'insert'
+        if testName is 'persistent'
+          test_persistent('child1')
+        else if testName is 'insert'
           test_insert('child1')
         else if testName is 'update'
           test_update('child1')
@@ -391,6 +424,9 @@ addTest = (testName, impl) ->
       console.log e.stack
     check test, onComplete, promise if promise?
 
+sql = Meteor.BrowserCollection._store.implementation is 'SQL'
+
+addTest 'documents are persistent', test_persistent
 addTest 'insert', test_insert
 addTest 'update', test_update
 addTest 'update_multiple', test_update_multiple
