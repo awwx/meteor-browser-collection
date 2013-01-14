@@ -30,7 +30,7 @@ and thus in theory should work with:
 * Opera 12.1+
 * Safari 5.1+
 
-Tested with
+Tested so far with
 
 * Android 2.3
 * Chrome 23
@@ -86,9 +86,9 @@ retrieved for each update.
 Differences with Meteor Collections
 -----------------------------------
 
-A difference with Meteor.Collection is that updates are *not* applied
-to the local collection before being stored in the browser database.
-With a Meteor.Collection, code will see local updates immediately:
+Unlike Meteor.Collection, updates are *not* applied to the local
+collection before being stored in the browser database.  With a
+Meteor.Collection, code will see local updates immediately:
 
     var id = collection.insert({a: 1, b: 2});
     var doc = collection.findOne(id);
