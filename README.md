@@ -17,9 +17,9 @@ Supported Browsers
 ------------------
 
 Browsers need to support either
-[http://caniuse.com/#feat=indexeddb](IndexedDB)
+[IndexedDB](http://caniuse.com/#feat=indexeddb)
 or
-[http://caniuse.com/#feat=sql-storage](Web SQL Database):
+[Web SQL Database](http://caniuse.com/#feat=sql-storage):
 
 * Android 2.1+
 * Chrome 23+
@@ -35,32 +35,32 @@ Safe Updates
 A primary goal is to make it safe to make updates in different windows
 at the same time, such as
 
-  collection.update(id, {$inc: {a: 1}});
+    collection.update(id, {$inc: {a: 1}});
 
 or
 
-  collection.update(id, {$push: {list: "foo"}});
+    collection.update(id, {$push: {list: "foo"}});
 
 To accomplish this the update algorithm carefully applies updates
 entirely within a database transaction.  Although a cached copy of the
 collection is kept in memory to support Meteor's Cursor API, the most
 recent version of the document is read within the transaction:
 
-  TRANSACTION(
-    doc = read_doc_from_database()
-    modify(doc)
-    write_doc_to_database(doc)
-  )
+    TRANSACTION(
+      doc = read_doc_from_database()
+      modify(doc)
+      write_doc_to_database(doc)
+    )
 
 Without this two windows could both perform an update operation and have
 one of them not be applied:
 
-  window 1: doc = read_doc_from_database()  -- reads doc {i: 10}
-  window 2: doc = read_doc_from_database()  -- reads doc {i: 10}
-  window 1: modify(doc, {$inc: {i: 1}})     -- updates doc to {i: 11}
-  window 2: modify(doc, {$inc: {i: 1}})     -- updates doc to {i: 11}
-  window 1: write_doc_to_database(doc)      -- stores doc {i: 11}
-  window 2: write_doc_to_database(doc)      -- stores doc {i: 11}
+    window 1: doc = read_doc_from_database()  -- reads doc {i: 10}
+    window 2: doc = read_doc_from_database()  -- reads doc {i: 10}
+    window 1: modify(doc, {$inc: {i: 1}})     -- updates doc to {i: 11}
+    window 2: modify(doc, {$inc: {i: 1}})     -- updates doc to {i: 11}
+    window 1: write_doc_to_database(doc)      -- stores doc {i: 11}
+    window 2: write_doc_to_database(doc)      -- stores doc {i: 11}
 
 
 Optimizations
@@ -80,15 +80,15 @@ that updates are *not* applied to the local collection before being
 stored in the browser database.  With a Meteor.Collection, code will
 see local updates immediately:
 
-  var id = collection.insert({a: 1, b: 2});
-  var doc = collection.findOne(id);
+    var id = collection.insert({a: 1, b: 2});
+    var doc = collection.findOne(id);
 
 but with a browser collection code won't see the update until the
 update has been performed:
 
-  browserCollection.insert({a: 1, b: 2}, function (err, id) {
-    var doc = collection.findOne(id);
-  });
+    browserCollection.insert({a: 1, b: 2}, function (err, id) {
+      var doc = collection.findOne(id);
+    });
 
 
 `new Meteor.BrowserCollection(name, [callback])`
