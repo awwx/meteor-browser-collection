@@ -112,7 +112,7 @@ been populated from the browser's database.
 
 
     collection.find(selector, [options])
-    collection.findOne(selector, [options]
+    collection.findOne(selector, [options])
 
 Works the same as Meteor.Collection, and returns a
 Meteor.Collection.Cursor.
