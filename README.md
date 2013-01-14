@@ -93,34 +93,34 @@ update has been performed:
 API
 ---
 
-`new Meteor.BrowserCollection(name, [callback])`
+    new Meteor.BrowserCollection(name, [callback])
 
 Creates and returns a BrowserCollection named `name`.  The name is
 required.  The optional callback is called when the collection has
 been populated from the browser's database.
 
 
-`collection.find(selector, [options])`
-`collection.findOne(selector, [options]`
+    collection.find(selector, [options])
+    collection.findOne(selector, [options]
 
 Works the same as Meteor.Collection, and returns a
 Meteor.Collection.Cursor.
 
 
-`collection.insert(doc, [callback])`
+    collection.insert(doc, [callback])
 
 The optional callback will be called after the document has been
 inserted.
 
 
-`collection.update(selector, modifier, [options], [callback])`
+    collection.update(selector, modifier, [options], [callback])
 
 Optimized if `selector` is a string (a document id).
 
 
-`collection.remove(selector, [callback]);
+    collection.remove(selector, [callback])
 
 Optimized if `selector` is a string (a document id).
 
 
-The server API method `allow` and `deny` are not present.
+The server API methods `allow` and `deny` are not present.
