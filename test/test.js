@@ -615,22 +615,14 @@
 
   addTest('documents are persistent', test_persistent);
 
-  if (sql) {
-    addTest('insert', test_insert);
-  }
+  addTest('insert', test_insert);
 
   addTest('update', test_update);
 
-  if (sql) {
-    addTest('update_multiple', test_update_multiple);
-  }
+  addTest('update_multiple', test_update_multiple);
 
-  if (sql) {
-    addTest('remove', test_remove);
-  }
+  addTest('remove', test_remove);
 
-  if (sql) {
-    addTest('remove_multiple', test_remove_multiple);
-  }
+  addTest('remove_multiple', test_remove_multiple);
 
 }).call(this);
