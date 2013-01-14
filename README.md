@@ -72,8 +72,8 @@ read for the update; otherwise the entire collection of documents is
 retrieved for each update.
 
 
-No Local Updates
-----------------
+Differences with Meteor Collections
+-----------------------------------
 
 A difference with Meteor.Collection is that updates are *not* applied
 to the local collection before being stored in the browser database.
