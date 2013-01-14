@@ -134,4 +134,4 @@ Optimized if `selector` is a string (a document id).
 Optimized if `selector` is a string (a document id).
 
 
-The server API methods `allow` and `deny` are not present.
+The server API methods `allow` and `deny` are not included.
