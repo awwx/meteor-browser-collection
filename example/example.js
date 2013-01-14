@@ -6,7 +6,7 @@
     return;
   }
 
-  count = new Meteor.BrowserSQLCollection('count', function() {
+  count = new Meteor.BrowserCollection('count', function() {
     if (count.find().count() === 0) {
       return count.insert({
         i: 30
@@ -14,15 +14,9 @@
     }
   });
 
-  window.count = count;
-
   Template.hello.events({
     'click #inc': function() {
-      var id;
-      id = count.find().map(function(doc) {
-        return doc._id;
-      })[0];
-      return count.update(id, {
+      return count.update({}, {
         $inc: {
           i: 1
         }
