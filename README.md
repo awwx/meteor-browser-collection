@@ -13,6 +13,19 @@ Browser collections do not use the Meteor server or the Internet, and
 so can be used while offline.
 
 
+Status
+------
+
+This package is under development (it is not published to Atmosphere
+yet).
+
+Not all browsers can support local persistent collections (either
+IndexedDB or Web SQL Database is needed).  Currently the package
+throws an error if it is used on a browser that cannot support it.
+A better API would allow you to check first whether you're running
+on a supported browser or not.
+
+
 Supported Browsers
 ------------------
 
