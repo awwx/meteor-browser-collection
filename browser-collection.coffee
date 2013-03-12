@@ -449,11 +449,14 @@ _.extend Meteor.BrowserCollection.prototype,
       (=>
         oldResults = idMap(@_localCollection.find().fetch())
         newResults = idMap(docs)
-        LocalCollection._diffQueryUnordered oldResults, newResults,
-          added:   (newDoc) => @_localCollection.insert newDoc
-          changed: (newDoc) => @_localCollection.update newDoc._id, newDoc
-          removed: (oldDoc) => @_localCollection.remove oldDoc._id
-        undefined
+        LocalCollection._diffQueryUnorderedChanges oldResults, newResults,
+          added:   (id) =>
+            @_localCollection.insert newResults[id]
+          changed: (id) =>
+            @_localCollection.update id, _.omit(newResults[id], '_id')
+          removed: (id) =>
+            @_localCollection.remove id
+        return
       ),
       ((error) => errorLog '_reload_all transaction error', error)
     )
@@ -461,7 +464,7 @@ _.extend Meteor.BrowserCollection.prototype,
   insert: (doc, callback) ->
     if doc._id?
       throw new Error 'inserted doc should not yet have an _id attribute'
-    doc._id = LocalCollection.uuid()
+    doc._id = Random.id()
     store.transaction(
       'insert',
       ((tx) =>
